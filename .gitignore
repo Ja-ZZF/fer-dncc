@@ -62,3 +62,6 @@ temp/
 # OS
 .DS_Store
 Thumbs.db
+visualize_outputs/classification_report.txt
+visualize_outputs/confusion_matrix_normalized.png
+visualize_outputs/confusion_matrix.png
