@@ -14,58 +14,54 @@ class EmotionCNN(nn.Module):
     Convolutional Neural Network for facial expression recognition (FER).
     Input: grayscale images of size 48x48
     Output: 8-class emotion classification
+    Architecture based on DCNN with 64->128->256 channels
     """
     def __init__(self, num_classes=8):
         super(EmotionCNN, self).__init__()
         
-        # Block 1
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
+        # Block 1: 64 filters
+        # Input: (None, 1, 48, 48)
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, padding=1)  # (None, 64, 48, 48)
+        self.bn1 = nn.BatchNorm2d(64)
         self.relu1 = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(32)
+        self.conv2 = nn.Conv2d(64, 64, kernel_size=3, padding=1)  # (None, 64, 48, 48)
+        self.bn2 = nn.BatchNorm2d(64)
         self.relu2 = nn.ReLU(inplace=True)
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pool1 = nn.MaxPool2d(kernel_size=3, stride=3)  # (None, 64, 16, 16)
         self.dropout1 = nn.Dropout(0.25)
         
-        # Block 2
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
-        self.bn3 = nn.BatchNorm2d(64)
+        # Block 2: 128 filters
+        # Input: (None, 64, 16, 16)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, padding=1)  # (None, 128, 16, 16)
+        self.bn3 = nn.BatchNorm2d(128)
         self.relu3 = nn.ReLU(inplace=True)
-        self.conv4 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
-        self.bn4 = nn.BatchNorm2d(64)
+        self.conv4 = nn.Conv2d(128, 128, kernel_size=3, padding=1)  # (None, 128, 16, 16)
+        self.bn4 = nn.BatchNorm2d(128)
         self.relu4 = nn.ReLU(inplace=True)
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)  # (None, 128, 8, 8)
         self.dropout2 = nn.Dropout(0.25)
         
-        # Block 3
-        self.conv5 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
-        self.bn5 = nn.BatchNorm2d(128)
+        # Block 3: 256 filters
+        # Input: (None, 128, 8, 8)
+        self.conv5 = nn.Conv2d(128, 256, kernel_size=3, padding=1)  # (None, 256, 8, 8)
+        self.bn5 = nn.BatchNorm2d(256)
         self.relu5 = nn.ReLU(inplace=True)
-        self.conv6 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.bn6 = nn.BatchNorm2d(128)
+        self.conv6 = nn.Conv2d(256, 256, kernel_size=3, padding=1)  # (None, 256, 8, 8)
+        self.bn6 = nn.BatchNorm2d(256)
         self.relu6 = nn.ReLU(inplace=True)
-        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)  # (None, 256, 4, 4)
         self.dropout3 = nn.Dropout(0.25)
         
-        # Global Average Pooling
-        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
-        
+        # Flatten: 256 * 4 * 4 = 4096
         # Fully Connected layers
-        self.fc1 = nn.Linear(128, 256)
-        self.bn_fc1 = nn.BatchNorm1d(256)
-        self.relu_fc1 = nn.ReLU(inplace=True)
-        self.dropout_fc1 = nn.Dropout(0.5)
+        self.fc1 = nn.Linear(256 * 4 * 4, 128)  # (None, 128)
+        self.bn_fc1 = nn.BatchNorm1d(128)
+        self.dropout_fc = nn.Dropout(0.5)
         
-        self.fc2 = nn.Linear(256, 128)
-        self.bn_fc2 = nn.BatchNorm1d(128)
-        self.relu_fc2 = nn.ReLU(inplace=True)
-        self.dropout_fc2 = nn.Dropout(0.5)
-        
-        self.fc3 = nn.Linear(128, num_classes)
+        self.fc2 = nn.Linear(128, num_classes)  # (None, 8)
         
     def forward(self, x):
-        # Block 1: 48x48 -> 24x24
+        # Block 1: 48x48 -> 16x16 (stride=3)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu1(x)
@@ -75,7 +71,7 @@ class EmotionCNN(nn.Module):
         x = self.pool1(x)
         x = self.dropout1(x)
         
-        # Block 2: 24x24 -> 12x12
+        # Block 2: 16x16 -> 8x8
         x = self.conv3(x)
         x = self.bn3(x)
         x = self.relu3(x)
@@ -85,7 +81,7 @@ class EmotionCNN(nn.Module):
         x = self.pool2(x)
         x = self.dropout2(x)
         
-        # Block 3: 12x12 -> 6x6
+        # Block 3: 8x8 -> 4x4
         x = self.conv5(x)
         x = self.bn5(x)
         x = self.relu5(x)
@@ -95,22 +91,16 @@ class EmotionCNN(nn.Module):
         x = self.pool3(x)
         x = self.dropout3(x)
         
-        # Global Average Pooling
-        x = self.global_pool(x)
+        # Flatten
         x = x.view(x.size(0), -1)
         
         # Fully Connected layers
         x = self.fc1(x)
         x = self.bn_fc1(x)
-        x = self.relu_fc1(x)
-        x = self.dropout_fc1(x)
+        x = self.relu1(x)
+        x = self.dropout_fc(x)
         
         x = self.fc2(x)
-        x = self.bn_fc2(x)
-        x = self.relu_fc2(x)
-        x = self.dropout_fc2(x)
-        
-        x = self.fc3(x)
         return x
 
 
