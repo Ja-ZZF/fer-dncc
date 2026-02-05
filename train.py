@@ -6,6 +6,52 @@ import numpy as np
 from tqdm import tqdm
 import os
 from data_loader import get_data_loaders
+from torchvision.models import resnet18, resnet34, resnet50
+
+
+# ======================== ResNet Network Model ========================
+class EmotionResNet(nn.Module):
+    """
+    ResNet-based network for facial expression recognition (FER).
+    Adapts pre-trained ResNet to handle grayscale 48x48 images and 8-class emotion classification.
+    """
+    def __init__(self, num_classes=8, resnet_type='resnet18', pretrained=False):
+        """
+        Args:
+            num_classes (int): Number of emotion classes (default: 8)
+            resnet_type (str): Type of ResNet ('resnet18', 'resnet34', 'resnet50')
+            pretrained (bool): Whether to use pretrained weights from ImageNet
+        """
+        super(EmotionResNet, self).__init__()
+        
+        # Load ResNet model
+        if resnet_type == 'resnet18':
+            self.resnet = resnet18(pretrained=pretrained)
+        elif resnet_type == 'resnet34':
+            self.resnet = resnet34(pretrained=pretrained)
+        elif resnet_type == 'resnet50':
+            self.resnet = resnet50(pretrained=pretrained)
+        else:
+            raise ValueError(f"Unsupported resnet_type: {resnet_type}")
+        
+        # Modify first convolutional layer to accept grayscale (1 channel) input
+        # Original ResNet expects 3 channels (RGB)
+        original_conv1 = self.resnet.conv1
+        self.resnet.conv1 = nn.Conv2d(
+            1,  # grayscale input
+            original_conv1.out_channels,
+            kernel_size=original_conv1.kernel_size,
+            stride=original_conv1.stride,
+            padding=original_conv1.padding,
+            bias=original_conv1.bias
+        )
+        
+        # Replace the final fully connected layer for emotion classification
+        in_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Linear(in_features, num_classes)
+    
+    def forward(self, x):
+        return self.resnet(x)
 
 
 # ======================== CNN Network Model ========================
@@ -220,8 +266,18 @@ def main():
     
     # Model setup
     print("\nInitializing model...")
-    model = EmotionCNN(num_classes=num_classes)
+    # Choose model: 'cnn' or 'resnet' (resnet18, resnet34, resnet50)
+    model_type = 'resnet18'  # Change to 'resnet34', 'resnet50', or 'cnn'
+    
+    if model_type == 'cnn':
+        model = EmotionCNN(num_classes=num_classes)
+    elif model_type.startswith('resnet'):
+        model = EmotionResNet(num_classes=num_classes, resnet_type=model_type, pretrained=False)
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")
+    
     model.to(device)
+    print(f"Model: {model_type}")
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     
     # Loss function and optimizer
